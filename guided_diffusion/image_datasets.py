@@ -17,6 +17,7 @@ def load_data(
     deterministic=False,
     random_crop=False,
     random_flip=True,
+    max_no_imgs_per_class=-1,
 ):
     """
     For a dataset, create a generator over (images, kwargs) pairs.
@@ -38,7 +39,11 @@ def load_data(
     """
     if not data_dir:
         raise ValueError("unspecified data directory")
-    all_files = _list_image_files_recursively(data_dir)
+
+    all_files = _list_image_files_recursively(
+        data_dir, max_no_files_per_class=max_no_imgs_per_class
+    )
+    print("using", len(all_files), "images in total")
     classes = None
     if class_cond:
         # Assume classes are the first part of the filename,
@@ -67,13 +72,23 @@ def load_data(
         yield from loader
 
 
-def _list_image_files_recursively(data_dir):
+def _list_image_files_recursively(data_dir, max_no_files_per_class=-1):
     results = []
+    n_files = 0
     for entry in sorted(bf.listdir(data_dir)):
         full_path = bf.join(data_dir, entry)
         ext = entry.split(".")[-1]
         if "." in entry and ext.lower() in ["jpg", "jpeg", "png", "gif"]:
-            results.append(full_path)
+            if n_files == max_no_files_per_class:
+                continue
+            else:
+                results.append(full_path)
+                n_files += 1
+            # try:
+            #     Image.open(full_path).load()
+            #     results.append(full_path)
+            # except Exception as e:
+            #     print(full_path, "is truncated")
         elif bf.isdir(full_path):
             results.extend(_list_image_files_recursively(full_path))
     return results

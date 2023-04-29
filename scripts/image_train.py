@@ -8,16 +8,19 @@ from guided_diffusion import dist_util, logger
 from guided_diffusion.image_datasets import load_data
 from guided_diffusion.resample import create_named_schedule_sampler
 from guided_diffusion.script_util import (
+    init_wandb,
     model_and_diffusion_defaults,
     create_model_and_diffusion,
     args_to_dict,
     add_dict_to_argparser,
 )
 from guided_diffusion.train_util import TrainLoop
+from guided_diffusion.distill_train_util import DistillTrainLoop
 
 
 def main():
     args = create_argparser().parse_args()
+    init_wandb(vars(args))
 
     dist_util.setup_dist()
     logger.configure()
@@ -35,10 +38,11 @@ def main():
         batch_size=args.batch_size,
         image_size=args.image_size,
         class_cond=args.class_cond,
+        max_no_imgs_per_class=args.max_no_imgs_per_class,
     )
 
     logger.log("training...")
-    TrainLoop(
+    train_kwargs = dict(
         model=model,
         diffusion=diffusion,
         data=data,
@@ -54,13 +58,27 @@ def main():
         schedule_sampler=schedule_sampler,
         weight_decay=args.weight_decay,
         lr_anneal_steps=args.lr_anneal_steps,
-    ).run_loop()
+    )
+    if args.distillation_type == "progressive":
+        train_fn = DistillTrainLoop
+        train_kwargs.update(
+            dict(
+                distillation_type=args.distillation_type,
+                teacher_model=args.teacher_model,
+            )
+        )
+    else:
+        train_fn = TrainLoop
+    train_fn(**train_kwargs).run_loop()
 
 
 def create_argparser():
     defaults = dict(
         data_dir="",
+        max_no_imgs_per_class=-1,  # how many imgs to use per class, -1 means use all
         schedule_sampler="uniform",
+        distillation_type="none",
+        teacher_model="",
         lr=1e-4,
         weight_decay=0.0,
         lr_anneal_steps=0,

@@ -1,11 +1,19 @@
 import argparse
 import inspect
+import wandb
 
 from . import gaussian_diffusion as gd
 from .respace import SpacedDiffusion, space_timesteps
 from .unet import SuperResModel, UNetModel, EncoderUNetModel
 
 NUM_CLASSES = 1000
+
+
+def init_wandb(config={}):
+    """
+    Initialize wandb logger
+    """
+    wandb.init(project="thesis", config={"dataset": "imagenet10k", **config})
 
 
 def diffusion_defaults():

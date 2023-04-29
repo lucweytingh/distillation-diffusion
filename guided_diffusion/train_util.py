@@ -1,6 +1,8 @@
 import copy
 import functools
 import os
+import random
+import wandb
 
 import blobfile as bf
 import torch as th
@@ -226,6 +228,12 @@ class TrainLoop:
             param_group["lr"] = lr
 
     def log_step(self):
+        wandb.log(
+            {
+                "step": self.step + self.resume_step,
+                "samples": (self.step + self.resume_step + 1) * self.global_batch,
+            }
+        )
         logger.logkv("step", self.step + self.resume_step)
         logger.logkv("samples", (self.step + self.resume_step + 1) * self.global_batch)
 
@@ -295,7 +303,9 @@ def find_ema_checkpoint(main_checkpoint, step, rate):
 def log_loss_dict(diffusion, ts, losses):
     for key, values in losses.items():
         logger.logkv_mean(key, values.mean().item())
+        wandb.log({key: values.mean().item()})
         # Log the quantiles (four quartiles, in particular).
         for sub_t, sub_loss in zip(ts.cpu().numpy(), values.detach().cpu().numpy()):
             quartile = int(4 * sub_t / diffusion.num_timesteps)
             logger.logkv_mean(f"{key}_q{quartile}", sub_loss)
+            wandb.log({f"{key}_q{quartile}": sub_loss})
